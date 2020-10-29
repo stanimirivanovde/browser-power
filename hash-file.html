@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="UTF-8">
+	<title>File Hasher</title>
+	<script src="https://cdn.jsdelivr.net/npm/node-forge@0.7.0/dist/forge.min.js"></script>
+	<script src="https://bitwiseshiftleft.github.io/sjcl/sjcl.js"></script>
+</head>
+
+<body>
+	<input type="file" id="file-upload" onchange="hashFileAsync(event)">
+
+	<div>
+		Progress:
+		<div id="progressBar"></div> 
+	</div>
+
+	<div>
+		Hash:
+		<div id="result"></div> 
+	</div>
+
+	<script type="text/Javascript">
+		function readFilePromise(file, start, end) {
+			return new Promise(function(resolve, reject) {
+				var reader = new FileReader();
+				// .slice() allows you to get slices of the file here we take a slice of the entire file
+				const fileSliceBlob = file.slice(start, end);
+				reader.readAsBinaryString(fileSliceBlob);
+				//reader.readAsArrayBuffer(fileSliceBlob);
+				reader.onload = function() {
+					resolve(reader.result);
+				}
+				reader.onerror = function() {
+					reject(reader.error);
+				}
+			});
+		}
+
+		function hex (buff) {
+			return [].map.call(new Uint8Array(buff), b => ('00' + b.toString(16)).slice(-2)).join('');
+		}
+
+		async function hashFileAsync(evt) {
+			try {
+				var file = evt.target.files[0];
+
+				var md = forge.md.sha256.create();  
+				md.start();
+
+				// Read the file 10MB at a time
+				const sliceSize = 1024 * 1000 * 10;
+				var numberOfSlices = parseInt(file.size / sliceSize, 10) + 1;
+				if (sliceSize > file.size) {
+					numberOfSlices = 1;
+				}
+				console.log(
+					"Processing file: " + file.name + " with size: " + file.size, ", slice size: " +
+					sliceSize + ", number of slices: " + numberOfSlices
+				);
+
+				const algorithm = "SHA-256";
+
+				let startTime = performance.now(); //start time
+				var hashPromise = null;
+				for (i = 0; i < numberOfSlices; ++i) {
+					const startOffset = i * sliceSize;
+					const endOffset = startOffset + sliceSize;
+					console.log("from offset " + startOffset + " to " + endOffset + ", slice " + i + " out of: " + numberOfSlices);
+					progressBar.innerHTML = "" + ((i + 1) / numberOfSlices * 100) + "%";
+					const data = await readFilePromise(file, startOffset, endOffset);
+					md.update(data);
+					/*
+					crypto.subtle.digest(algorithm, data).then(hashed => {
+						console.log(hashed); // ArrayBuffer
+						console.log(hex(hashed)); // 185f8db32271fe25f561a6fc938b2e264306ec304eda518007d1764826381969
+					});
+					*/
+					//const digest = crypto.subtle.digest(algorithm, data);
+					//console.log(digest);
+				}
+				let endTime = performance.now(); //end time
+				let executionTimeInSeconds = (endTime - startTime) / 1000;
+				console.log('Time taken to execute add function: '+ executionTimeInSeconds +' seconds');
+				console.log(md.digest().toHex());
+				result.innerHTML = md.digest().toHex();
+			} catch(error) {
+				console.log(error);
+			}
+		}
+
+	</script>
+</body>
+
+</html>
