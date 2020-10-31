@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="UTF-8">
+	<title>File Encryptor</title>
+	<script src="https://cdn.jsdelivr.net/npm/node-forge@0.7.0/dist/forge.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/web-streams-polyfill@2.0.2/dist/ponyfill.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/streamsaver@2.0.3/StreamSaver.min.js"></script>
+</head>
+
+<body>
+	<div>
+		File to encrypt:
+		<input type="file" id="file-upload"/>
+		<br/>
+
+		Type Password:
+		<input type="text" id="password"/>
+		<br/>
+		<button id="encryptBtn" onclick="encryptFileAsync(event)">Encrypt File</button>
+	</div>
+
+	<br/>
+	<br/>
+
+	<div>
+		Progress:
+		<div id="progressBar"></div>
+	</div>
+
+	<div>
+		<a href="url" id="link" download="data.txt">Encrypted File</a>
+	</div>
+
+	<script type="text/Javascript">
+		var encryptionDone = false
+
+		function readFilePromise(file, start, end) {
+			return new Promise(function(resolve, reject) {
+				var reader = new FileReader();
+				// .slice() allows you to get slices of the file here we take a slice of the entire file
+				const fileSliceBlob = file.slice(start, end);
+				reader.readAsBinaryString(fileSliceBlob);
+				//reader.readAsArrayBuffer(fileSliceBlob);
+				reader.onload = function() {
+					resolve(reader.result);
+				}
+				reader.onerror = function() {
+					reject(reader.error);
+				}
+			});
+		}
+
+		function hex (buff) {
+			return [].map.call(new Uint8Array(buff), b => ('00' + b.toString(16)).slice(-2)).join('');
+		}
+
+		async function encryptFileAsync() {
+			try {
+				encryptionDone = false
+				const file = document.getElementById("file-upload").files[0];
+				const password = document.getElementById("password").value;
+
+				const algorithm = "AES-GCM";
+				// Size of key in bytes
+				const keySize = 32;
+				// Size of iv in bytes
+				const ivLength = 12;
+				// Size of authentication tag in bytes
+				const tagLength = 16;
+				// Size of salt in bytes
+				// Use 16 byte (128 bit) salt
+				const saltSize = 16;
+
+				// Lets create an empty iv that contains all 0s
+				const iv = new Uint8Array(ivLength);
+				iv.fill(0, 0, ivLength);
+
+				const salt = forge.random.getBytesSync(saltSize);
+				const numIterations = 1000;
+				const key = forge.pkcs5.pbkdf2(password, salt, numIterations, keySize);
+				const cipher = forge.cipher.createCipher(algorithm, key);
+				cipher.start({
+					iv: iv, // should be a 12-byte binary-encoded string or byte buffer
+					//additionalData: 'binary-encoded string', // optional
+					tagLength: tagLength // optional, defaults to 128 bits
+				});
+
+				// Read the file 10MB at a time
+				const sliceSize = 1024 * 1000 * 10;
+				var numberOfSlices = parseInt(file.size / sliceSize, 10) + 1;
+				if (sliceSize > file.size) {
+					numberOfSlices = 1;
+				}
+				console.log(
+					"Processing file: " + file.name + " with size: " + file.size, ", slice size: " +
+					sliceSize + ", number of slices: " + numberOfSlices
+				);
+
+				// Create a writable stream
+				writeStream = createStream(file.name + '.enc', file.size)
+
+				let startTime = performance.now(); //start time
+				var hashPromise = null;
+				for (i = 0; i < numberOfSlices; ++i) {
+					const startOffset = i * sliceSize;
+					const endOffset = startOffset + sliceSize;
+					console.log("from offset " + startOffset + " to " + endOffset + ", slice " + i + " out of: " + numberOfSlices);
+					progressBar.innerHTML = "" + ((i + 1) / numberOfSlices * 100) + "%";
+					const data = await readFilePromise(file, startOffset, endOffset);
+					cipher.update(forge.util.createBuffer(data));
+					console.log("Encrypted size: " + cipher.output.length());
+					writeStream.write(cipher.output)
+				}
+				if (cipher.mode.tag) {
+					console.log(cipher.mode.tag)
+				}
+				cipher.finish();
+				console.log("Encrypted size after finish: " + cipher.output.length());
+				console.log("Tag: " + forge.util.encode64(cipher.mode.tag.getBytes()));
+				writeStream.write(cipher.mode.tag.getBytes())
+				let endTime = performance.now(); //end time
+				let executionTimeInSeconds = (endTime - startTime) / 1000;
+				console.log('Time taken to execute add function: '+ executionTimeInSeconds +' seconds');
+				const encryptedData = forge.util.encode64(cipher.output.getBytes());
+				console.log("Encrypted data: " + encryptedData);
+				// Creates a download link
+				//writeFile(encryptedData, file.name + '.enc');
+				// It's supposed to start a download in the background?
+				//streamWrite(encryptedData, file.name + '.enc')
+				//result.innerHTML = md.digest().toHex();
+			} catch(error) {
+				console.log(error);
+			} finally {
+				writeStream.close()
+				encryptionDone = true
+			}
+		}
+
+		function writeFile(data, fileName) {
+			let blob = new Blob([data], {type: 'application/octet-stream'});
+			const obj_url = URL.createObjectURL(blob);
+			const link = document.getElementById('link');
+			link.setAttribute('href', obj_url);
+			link.setAttribute('download', fileName);
+			// Start the download
+			link.click();
+			URL.revokeObjectURL(obj_url);
+		}
+
+		function createStream(fileName, fileSize) {
+			// streamSaver.createWriteStream() returns a wirtable byte stream
+			// The WritableStream only accepts Uint8Array chunks
+			// (no other typed arrays, arrayBuffers or strings are allowed)
+			const fileStream = streamSaver.createWriteStream(fileName, {
+				size: fileSize, // (optional filesize) Will show progress
+				writableStrategy: undefined, // (optional)
+				readableStrategy: undefined  // (optional)
+			})
+			writer = fileStream.getWriter()
+
+			// abort so it dose not look stuck
+			window.onunload = () => {
+				fileStream.abort()
+				// also possible to call abort on the writer you got from `getWriter()`
+				writer.abort()
+			}
+
+			window.onbeforeunload = evt => {
+				if (!encryptionDone) {
+					evt.returnValue = `Are you sure you want to leave?`;
+				}
+			}
+			return writer
+		}
+
+	</script>
+</body>
+
+</html>
