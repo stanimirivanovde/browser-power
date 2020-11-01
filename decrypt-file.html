@@ -69,7 +69,8 @@
 				// Use 16 byte (128 bit) salt
 				const saltSize = 16;
 				// Number of PBKDF cycles
-				const numIterations = 1000;
+				// The more the better but also the slower the key will be generated
+				const numIterations = 100000;
 
 				// Lets create an empty iv that contains all 0s
 				const iv = new Uint8Array(ivLength);
@@ -77,14 +78,16 @@
 
 				// Read the salt from the destination file
 				const salt = await readFilePromise(file, 0, saltSize, "binaryString");
+				// This is public info. No need to hide it.
 				console.log("Salt: " + forge.util.bytesToHex(salt))
 
 				// Generate the key from the salt and password
+				// This is a secret. Don't show it to anybody.
 				const key = forge.pkcs5.pbkdf2(password, salt, numIterations, keySize);
-				console.log("Key: " + forge.util.bytesToHex(key))
 
 				// Read the authentication tag
 				const tag = await readFilePromise(file, -tagLength, file.size)
+				// Also public info. Let's display it.
 				console.log("Tag: " + forge.util.bytesToHex(tag))
 
 				const decipher = forge.cipher.createDecipher(algorithm, key);
@@ -95,8 +98,8 @@
 					tag: tag
 				});
 
-				// Read the file 10MB at a time
-				const sliceSize = 1024 * 1000 * 10;
+				// Read the file 1MB at a time
+				const sliceSize = 1024 * 1000;
 				var numberOfSlices = parseInt((file.size - saltSize - tagLength) / sliceSize, 10) + 1;
 				if (sliceSize > file.size) {
 					numberOfSlices = 1;
@@ -114,38 +117,40 @@
 				let startTime = performance.now(); //start time
 				for (i = 0; i < numberOfSlices; ++i) {
 					const startOffset = i * sliceSize + saltSize;
-					var endOffset = startOffset + sliceSize + saltSize;
-					// Don't read the authentication tag
+					var endOffset = startOffset + sliceSize;
+					// Make sure we don't read the authentication tag
+					// It is saved at the end of the file
 					if (endOffset >= file.size - tagLength) {
 						endOffset = file.size - tagLength
 					}
-					console.log("from offset " + startOffset + " to " + endOffset + ", slice " + i + " out of: " + numberOfSlices);
+					// Show our nice progress
 					progressBar.innerHTML = "" + ((i + 1) / numberOfSlices * 100) + "%";
-					const data = await readFilePromise(file, startOffset, endOffset)
-					encryptedBytes = forge.util.createBuffer(data)
-					//encryptedBytes = convertUint8ArrayToBinaryString(data)
 
-					console.log("Encrypted data: " + forge.util.bytesToHex(encryptedBytes))
+					// This is a cool way to use a promise returning function.
+					const data = await readFilePromise(file, startOffset, endOffset)
+
+					// Decrypt the data
+					encryptedBytes = forge.util.createBuffer(data)
 					decipher.update(encryptedBytes)
-					console.log("Decipher output size: " + decipher.output.length());
+
 					// Convert the decrypted bytes into a Uint8Array for the WriteStream to work
 					const decryptedBytes = convertBinaryStringToUint8Array(decipher.output.getBytes())
-					console.log("Decrypted bytes size: " + decryptedBytes.length)
-					//console.log("Decrypted data: " + forge.util.bytesToHex(decryptedBytes))
+					// We are ready to write the result
 					writer.write(decryptedBytes)
-					console.log("After write size: " + decipher.output.length());
 				}
 				const pass = decipher.finish();
+				// This will fail if the authentication tag doesn't match
 				if (!pass) {
 					console.log("!!! Error decrypting " + file.name)
+					alert("Error decrypting the file. Might be corrupted or tampered with.")
 				}
-				// Write remaining data
+				// Write remaining data if any
 				const decryptedBytes = convertBinaryStringToUint8Array(decipher.output.getBytes())
 				writer.write(decryptedBytes)
 
 				let endTime = performance.now(); //end time
 				let executionTimeInSeconds = (endTime - startTime) / 1000;
-				console.log('Time taken to execute add function: '+ executionTimeInSeconds +' seconds');
+				console.log('Decryption time: '+ executionTimeInSeconds +' seconds');
 			} catch(error) {
 				console.log(error);
 			} finally {

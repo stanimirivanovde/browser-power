@@ -73,14 +73,18 @@
 				// Use 16 byte (128 bit) salt
 				const saltSize = 16;
 				// Number of PBKDF cycles
-				const numIterations = 1000;
+				// The more the better but also the slower the key will be generated
+				const numIterations = 100000;
 
 				// Lets create an empty iv that contains all 0s
 				const iv = new Uint8Array(ivLength);
 				iv.fill(0, 0, ivLength);
 
 				const salt = forge.random.getBytesSync(saltSize);
+				// This is public info. No need to hide it.
 				console.log("Salt: " + forge.util.bytesToHex(salt))
+
+				// This will take some time depending on the numIterations
 				const key = forge.pkcs5.pbkdf2(password, salt, numIterations, keySize);
 				const cipher = forge.cipher.createCipher(algorithm, key);
 				cipher.start({
@@ -89,8 +93,8 @@
 					tagLength: tagLength * 8 // optional, defaults to 128 bits
 				});
 
-				// Read the file 10MB at a time
-				const sliceSize = 1024 * 1000 * 10;
+				// Read the file 1MB at a time
+				const sliceSize = 1024 * 1000;
 				var numberOfSlices = parseInt(file.size / sliceSize, 10) + 1;
 				if (sliceSize > file.size) {
 					numberOfSlices = 1;
@@ -112,27 +116,26 @@
 				for (i = 0; i < numberOfSlices; ++i) {
 					const startOffset = i * sliceSize;
 					const endOffset = startOffset + sliceSize;
-					console.log("from offset " + startOffset + " to " + endOffset + ", slice " + i + " out of: " + numberOfSlices);
+
+					// Update the user with some progress
 					progressBar.innerHTML = "" + ((i + 1) / numberOfSlices * 100) + "%";
 
 					// The data is read as ArrayBuffer.
 					// This is a neat trick. Since we are an async function we caxn use await to
 					// read the file "sequentially" and not bother with promises etc.
 					const data = await readFilePromise(file, startOffset, endOffset);
+
 					// We need to create a forge buffer in order to encrypt it successfully
 					cipher.update(forge.util.createBuffer(data));
-					console.log("Cipher output size: " + cipher.output.length());
 
 					// Grabbing the bytes from the cipher will free the memory of the already encrypted bytes
+					// This allows us to run the encryption and decryption with constant memory
 					const encryptedBytes = cipher.output.getBytes()
-					console.log("Encrypted data: " + forge.util.bytesToHex(encryptedBytes))
 
 					// The encrypted bytes are a binary string  so we need to
-					// convert it to a Uint8Array for the WriteStream to work
+					// convert them to a Uint8Array for the WriteStream to work
 					const encryptedArray = convertBinaryStringToUint8Array(encryptedBytes)
-					console.log("Encrypted array size: " + encryptedArray.length)
 					writer.write(encryptedArray)
-					console.log("After write size: " + cipher.output.length());
 				}
 
 				// This will close the cipher and might have some remaining data in it
@@ -143,12 +146,13 @@
 
 				// Handle the authentication tag
 				authenticationTag = cipher.mode.tag.getBytes()
+				// This is public info. No need to hide it.
 				console.log("Tag: " + forge.util.bytesToHex(authenticationTag))
 				writer.write(convertBinaryStringToUint8Array(authenticationTag))
 
 				let endTime = performance.now(); //end time
 				let executionTimeInSeconds = (endTime - startTime) / 1000;
-				console.log('Time taken to execute add function: '+ executionTimeInSeconds +' seconds');
+				console.log('Encryption took: '+ executionTimeInSeconds +' seconds');
 			} catch(error) {
 				console.log(error);
 			} finally {
