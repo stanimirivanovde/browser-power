@@ -37,8 +37,7 @@
 				var reader = new FileReader();
 				// .slice() allows you to get slices of the file here we take a slice of the entire file
 				const fileSliceBlob = file.slice(start, end);
-				//reader.readAsBinaryString(fileSliceBlob);
-				reader.readAsArrayBuffer(fileSliceBlob);
+				reader.readAsBinaryString(fileSliceBlob);
 				reader.onload = function() {
 					resolve(reader.result);
 				}
@@ -85,6 +84,7 @@
 				console.log("Salt: " + forge.util.bytesToHex(salt))
 
 				// This will take some time depending on the numIterations
+				// This is a secret. Don't show it to anybody.
 				const key = forge.pkcs5.pbkdf2(password, salt, numIterations, keySize);
 				const cipher = forge.cipher.createCipher(algorithm, key);
 				cipher.start({
@@ -93,8 +93,11 @@
 					tagLength: tagLength * 8 // optional, defaults to 128 bits
 				});
 
-				// Read the file 1MB at a time
-				const sliceSize = 1024 * 1000;
+				// Read the file 512kb at a time
+				// I did some tests and it doesn't seem that larger values improve performance.
+				// I tried with 10MB but that results in around 6.5MB/s operation
+				// 512kb results in 9MB/s speed which is almost twice as fast.
+				const sliceSize = 1024 * 512;
 				var numberOfSlices = parseInt(file.size / sliceSize, 10) + 1;
 				if (sliceSize > file.size) {
 					numberOfSlices = 1;
@@ -118,7 +121,12 @@
 					const endOffset = startOffset + sliceSize;
 
 					// Update the user with some progress
-					progressBar.innerHTML = "" + ((i + 1) / numberOfSlices * 100) + "%";
+					// Report approximately every 10MB: ith slice is equal to i * sliceSize number of bytes processed
+					// 10MB are equal to 10MB / sliceSize. Since our slice size is half a megabyte we need 2 slices
+					// to form a megabyte. Therefore 20 slices to get to 10MB.
+					if ((i % 20) == 0) {
+						progressBar.innerHTML = "" + ((i + 1) / numberOfSlices * 100) + "%";
+					}
 
 					// The data is read as ArrayBuffer.
 					// This is a neat trick. Since we are an async function we caxn use await to
@@ -126,6 +134,11 @@
 					const data = await readFilePromise(file, startOffset, endOffset);
 
 					// We need to create a forge buffer in order to encrypt it successfully
+					// If the data is read as a binary string forge.util.createBuffer() is
+					// much more efficient. I wish it didn't have to convert the data at all.
+					const byteBuffer = forge.util.createBuffer(data)
+
+					// We are ready to encrypt
 					cipher.update(forge.util.createBuffer(data));
 
 					// Grabbing the bytes from the cipher will free the memory of the already encrypted bytes
@@ -137,9 +150,10 @@
 					const encryptedArray = convertBinaryStringToUint8Array(encryptedBytes)
 					writer.write(encryptedArray)
 				}
-
 				// This will close the cipher and might have some remaining data in it
 				cipher.finish();
+				progressBar.innerHTML = "100%"
+
 				// Write remaining data
 				const encryptedBytes = convertBinaryStringToUint8Array(cipher.output.getBytes())
 				writer.write(encryptedBytes)

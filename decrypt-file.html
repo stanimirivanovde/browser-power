@@ -38,7 +38,6 @@
 				// .slice() allows you to get slices of the file here we take a slice of the entire file
 				const fileSliceBlob = file.slice(start, end);
 				reader.readAsBinaryString(fileSliceBlob);
-				//reader.readAsArrayBuffer(fileSliceBlob);
 				reader.onload = function() {
 					resolve(reader.result);
 				}
@@ -123,8 +122,12 @@
 					if (endOffset >= file.size - tagLength) {
 						endOffset = file.size - tagLength
 					}
-					// Show our nice progress
-					progressBar.innerHTML = "" + ((i + 1) / numberOfSlices * 100) + "%";
+					// Update the user with some progress
+					// Report approximately every 10MB: ith slice is equal to i * sliceSize number of bytes processed
+					// 10MB are equal to 10MB / sliceSize. Since our slice size is a megabyte we can report each 10th slice
+					if ((i % 10) == 0) {
+						progressBar.innerHTML = "" + ((i + 1) / numberOfSlices * 100) + "%";
+					}
 
 					// This is a cool way to use a promise returning function.
 					const data = await readFilePromise(file, startOffset, endOffset)
@@ -144,6 +147,7 @@
 					console.log("!!! Error decrypting " + file.name)
 					alert("Error decrypting the file. Might be corrupted or tampered with.")
 				}
+				progressBar.innerHTML = "100%"
 				// Write remaining data if any
 				const decryptedBytes = convertBinaryStringToUint8Array(decipher.output.getBytes())
 				writer.write(decryptedBytes)
