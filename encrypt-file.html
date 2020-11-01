@@ -37,8 +37,8 @@
 				var reader = new FileReader();
 				// .slice() allows you to get slices of the file here we take a slice of the entire file
 				const fileSliceBlob = file.slice(start, end);
-				reader.readAsBinaryString(fileSliceBlob);
-				//reader.readAsArrayBuffer(fileSliceBlob);
+				//reader.readAsBinaryString(fileSliceBlob);
+				reader.readAsArrayBuffer(fileSliceBlob);
 				reader.onload = function() {
 					resolve(reader.result);
 				}
@@ -61,21 +61,26 @@
 
 				const algorithm = "AES-GCM";
 				// Size of key in bytes
+				// Use 32 byte (256 bit) key
 				const keySize = 32;
 				// Size of iv in bytes
+				// Use 12 byte (96 bit) iv
 				const ivLength = 12;
 				// Size of authentication tag in bytes
+				// Use 16 byte (128 bit) tag
 				const tagLength = 16;
 				// Size of salt in bytes
 				// Use 16 byte (128 bit) salt
 				const saltSize = 16;
+				// Number of PBKDF cycles
+				const numIterations = 1000;
 
 				// Lets create an empty iv that contains all 0s
 				const iv = new Uint8Array(ivLength);
 				iv.fill(0, 0, ivLength);
 
 				const salt = forge.random.getBytesSync(saltSize);
-				const numIterations = 1000;
+				console.log("Salt: " + forge.util.bytesToHex(salt))
 				const key = forge.pkcs5.pbkdf2(password, salt, numIterations, keySize);
 				const cipher = forge.cipher.createCipher(algorithm, key);
 				cipher.start({
@@ -99,7 +104,8 @@
 				const finalFileSize = file.size + saltSize + tagLength
 				const fileName = file.name + '.enc'
 				writer = createStream(fileName, finalFileSize)
-				writer.write(str2uint8array(salt))
+				// The WriteStream requries all the data to be in Uint8Array form
+				writer.write(convertBinaryStringToUint8Array(salt))
 
 				let startTime = performance.now(); //start time
 				var hashPromise = null;
@@ -108,24 +114,37 @@
 					const endOffset = startOffset + sliceSize;
 					console.log("from offset " + startOffset + " to " + endOffset + ", slice " + i + " out of: " + numberOfSlices);
 					progressBar.innerHTML = "" + ((i + 1) / numberOfSlices * 100) + "%";
+
+					// The data is read as ArrayBuffer.
+					// This is a neat trick. Since we are an async function we caxn use await to
+					// read the file "sequentially" and not bother with promises etc.
 					const data = await readFilePromise(file, startOffset, endOffset);
+					// We need to create a forge buffer in order to encrypt it successfully
 					cipher.update(forge.util.createBuffer(data));
 					console.log("Cipher output size: " + cipher.output.length());
-					const encryptedBytes = str2uint8array(cipher.output.getBytes())
-					console.log("Encrypted bytes size: " + encryptedBytes.length)
+
+					// Grabbing the bytes from the cipher will free the memory of the already encrypted bytes
+					const encryptedBytes = cipher.output.getBytes()
 					console.log("Encrypted data: " + forge.util.bytesToHex(encryptedBytes))
-					writer.write(encryptedBytes)
+
+					// The encrypted bytes are a binary string  so we need to
+					// convert it to a Uint8Array for the WriteStream to work
+					const encryptedArray = convertBinaryStringToUint8Array(encryptedBytes)
+					console.log("Encrypted array size: " + encryptedArray.length)
+					writer.write(encryptedArray)
 					console.log("After write size: " + cipher.output.length());
 				}
+
+				// This will close the cipher and might have some remaining data in it
 				cipher.finish();
 				// Write remaining data
-				const encryptedBytes = str2uint8array(cipher.output.getBytes())
+				const encryptedBytes = convertBinaryStringToUint8Array(cipher.output.getBytes())
 				writer.write(encryptedBytes)
 
 				// Handle the authentication tag
 				authenticationTag = cipher.mode.tag.getBytes()
 				console.log("Tag: " + forge.util.bytesToHex(authenticationTag))
-				writer.write(str2uint8array(authenticationTag))
+				writer.write(convertBinaryStringToUint8Array(authenticationTag))
 
 				let endTime = performance.now(); //end time
 				let executionTimeInSeconds = (endTime - startTime) / 1000;
@@ -140,6 +159,9 @@
 			}
 		}
 
+		/**
+		 * This function creates a WriteStream for the specified fileName and size.
+		 **/
 		function createStream(fileName, fileSize) {
 			console.log("Creating a stream for file " + fileName + " with total size: " + fileSize)
 			// streamSaver.createWriteStream() returns a wirtable byte stream
@@ -169,18 +191,28 @@
 			return writer
 		}
 
-		// perfomance: 77.245 ms for 2 mb, 102 ms for 4mb
-		// Converts string to an array buffer
-		function str2uint8array(str) {
-			var length  = str.length;
-			//var buff = new ArrayBuffer(strLen);
-			var buff = new Uint8Array(length);
-			for(var i = 0; i < length; i += 65535) {
-				var addition = (i + 65535 > length) ? length - i : 65535;
-				// slice and map are native functions 
-				buff.set(str.slice(i,i+addition).split('').map(function(el) {return el.charCodeAt();}));
+		/**
+		 * Converts a Uint8Array to a Binary String. This is needed to do proper
+		 * writing and reading from the WriteStream
+		 **/
+		function convertUint8ArrayToBinaryString(u8Array) {
+			var i, len = u8Array.length, b_str = "";
+			for (i=0; i<len; i++) {
+				b_str += String.fromCharCode(u8Array[i]);
 			}
-			return buff;
+			return b_str;
+		}
+
+		/**
+		 * Converts a Binary String to a Uint8Array. This is needed to do proper
+		 * writing and reading from the WriteStream
+		 **/
+		function convertBinaryStringToUint8Array(bStr) {
+			var i, len = bStr.length, u8_array = new Uint8Array(len);
+			for (var i = 0; i < len; i++) {
+				u8_array[i] = bStr.charCodeAt(i);
+			}
+			return u8_array;
 		}
 
 	</script>
