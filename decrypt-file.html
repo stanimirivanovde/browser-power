@@ -18,7 +18,7 @@
 		Type Password:
 		<input type="text" id="password"/>
 		<br/>
-		<button id="encryptBtn" onclick="encryptFileAsync(event)">Encrypt File</button>
+		<button id="encryptBtn" onclick="decryptFileAsync(event)">Decrypt File</button>
 	</div>
 
 	<br/>
@@ -30,7 +30,7 @@
 	</div>
 
 	<script type="text/Javascript">
-		var encryptionDone = false
+		var decryptionDone = false
 
 		function readFilePromise(file, start, end) {
 			return new Promise(function(resolve, reject) {
@@ -48,14 +48,10 @@
 			});
 		}
 
-		function hex (buff) {
-			return [].map.call(new Uint8Array(buff), b => ('00' + b.toString(16)).slice(-2)).join('');
-		}
-
-		async function encryptFileAsync() {
+		async function decryptFileAsync() {
 			var writer = undefined
 			try {
-				encryptionDone = false
+				decryptionDone = false
 				const file = document.getElementById("file-upload").files[0];
 				const password = document.getElementById("password").value;
 
@@ -74,19 +70,23 @@
 				const iv = new Uint8Array(ivLength);
 				iv.fill(0, 0, ivLength);
 
-				const salt = forge.random.getBytesSync(saltSize);
+				// Read the salt from the destination file
+				const salt = await readFilePromise(file, 0, saltSize);
 				const numIterations = 1000;
 				const key = forge.pkcs5.pbkdf2(password, salt, numIterations, keySize);
-				const cipher = forge.cipher.createCipher(algorithm, key);
-				cipher.start({
+				// Read the authentication tag
+				const tag = await readFilePromise(file, -tagLength, file.size)
+				const decipher = forge.cipher.createDecipher(algorithm, key);
+				decipher.start({
 					iv: iv, // should be a 12-byte binary-encoded string or byte buffer
 					//additionalData: 'binary-encoded string', // optional
-					tagLength: tagLength * 8 // optional, defaults to 128 bits
+					tagLength: tagLength * 8, // optional, defaults to 128 bits
+					tag: tag
 				});
 
 				// Read the file 10MB at a time
 				const sliceSize = 1024 * 1000 * 10;
-				var numberOfSlices = parseInt(file.size / sliceSize, 10) + 1;
+				var numberOfSlices = parseInt((file.size - saltSize - tagLength) / sliceSize, 10) + 1;
 				if (sliceSize > file.size) {
 					numberOfSlices = 1;
 				}
@@ -96,36 +96,36 @@
 				);
 
 				// Create a writable stream
-				const finalFileSize = file.size + saltSize + tagLength
-				const fileName = file.name + '.enc'
+				const finalFileSize = file.size - saltSize - tagLength
+				const fileName = file.name + '.dec'
 				writer = createStream(fileName, finalFileSize)
-				writer.write(str2uint8array(salt))
 
 				let startTime = performance.now(); //start time
-				var hashPromise = null;
 				for (i = 0; i < numberOfSlices; ++i) {
-					const startOffset = i * sliceSize;
-					const endOffset = startOffset + sliceSize;
+					const startOffset = i * sliceSize + saltSize;
+					var endOffset = startOffset + sliceSize + saltSize;
+					// Don't read the authentication tag
+					if (endOffset >= file.size - tagLength) {
+						endOffset = file.size - tagLength
+					}
 					console.log("from offset " + startOffset + " to " + endOffset + ", slice " + i + " out of: " + numberOfSlices);
 					progressBar.innerHTML = "" + ((i + 1) / numberOfSlices * 100) + "%";
 					const data = await readFilePromise(file, startOffset, endOffset);
-					cipher.update(forge.util.createBuffer(data));
-					console.log("Cipher output size: " + cipher.output.length());
-					const encryptedBytes = str2uint8array(cipher.output.getBytes())
-					console.log("Encrypted bytes size: " + encryptedBytes.length)
-					console.log("Encrypted data: " + forge.util.bytesToHex(encryptedBytes))
-					writer.write(encryptedBytes)
-					console.log("After write size: " + cipher.output.length());
+					decipher.update(forge.util.createBuffer(data));
+					console.log("Decipher output size: " + decipher.output.length());
+					const decryptedBytes = str2uint8array(decipher.output.getBytes())
+					console.log("Decrypted bytes size: " + decryptedBytes.length)
+					console.log("Decrypted data: " + forge.util.bytesToHex(decryptedBytes))
+					writer.write(decryptedBytes)
+					console.log("After write size: " + decipher.output.length());
 				}
-				cipher.finish();
+				const pass = decipher.finish();
+				if (!pass) {
+					console.log("!!! Error decrypting " + file.name)
+				}
 				// Write remaining data
-				const encryptedBytes = str2uint8array(cipher.output.getBytes())
-				writer.write(encryptedBytes)
-
-				// Handle the authentication tag
-				authenticationTag = cipher.mode.tag.getBytes()
-				console.log("Tag: " + forge.util.bytesToHex(authenticationTag))
-				writer.write(str2uint8array(authenticationTag))
+				const decryptedBytes = str2uint8array(decipher.output.getBytes())
+				writer.write(decryptedBytes)
 
 				let endTime = performance.now(); //end time
 				let executionTimeInSeconds = (endTime - startTime) / 1000;
@@ -136,7 +136,7 @@
 				if (typeof writer != "undefined") {
 					writer.close()
 				}
-				encryptionDone = true
+				decryptionDone = true
 			}
 		}
 
@@ -157,11 +157,10 @@
 				fileStream.abort()
 				// also possible to call abort on the writer you got from `getWriter()`
 				writer.abort()
-				alert("onunload")
 			}
 
 			window.onbeforeunload = evt => {
-				if (!encryptionDone) {
+				if (!decryptionDone) {
 					evt.returnValue = `Are you sure you want to leave?`;
 					alert("Ar you sure")
 				}
