@@ -4,7 +4,7 @@
 <head>
 	<meta charset="UTF-8">
 	<title>File Hasher</title>
-	<script src="https://cdn.jsdelivr.net/npm/node-forge@0.7.0/dist/forge.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/node-forge@0.9.0/dist/forge.min.js"></script>
 </head>
 
 <body>
@@ -27,7 +27,6 @@
 				// .slice() allows you to get slices of the file here we take a slice of the entire file
 				const fileSliceBlob = file.slice(start, end);
 				reader.readAsBinaryString(fileSliceBlob);
-				//reader.readAsArrayBuffer(fileSliceBlob);
 				reader.onload = function() {
 					resolve(reader.result);
 				}
@@ -48,8 +47,8 @@
 				var md = forge.md.sha256.create();  
 				md.start();
 
-				// Read the file 10MB at a time
-				const sliceSize = 1024 * 1000 * 10;
+				// Read the file 1MB at a time
+				const sliceSize = 1024 * 1000;
 				var numberOfSlices = parseInt(file.size / sliceSize, 10) + 1;
 				if (sliceSize > file.size) {
 					numberOfSlices = 1;
@@ -59,31 +58,24 @@
 					sliceSize + ", number of slices: " + numberOfSlices
 				);
 
-				const algorithm = "SHA-256";
-
 				let startTime = performance.now(); //start time
 				var hashPromise = null;
 				for (i = 0; i < numberOfSlices; ++i) {
 					const startOffset = i * sliceSize;
 					const endOffset = startOffset + sliceSize;
-					console.log("from offset " + startOffset + " to " + endOffset + ", slice " + i + " out of: " + numberOfSlices);
-					progressBar.innerHTML = "" + ((i + 1) / numberOfSlices * 100) + "%";
+					// Print progress every 10 MBs
+					if ((i % 10) == 0) {
+						progressBar.innerHTML = "" + ((i + 1) / numberOfSlices * 100) + "%";
+					}
 					const data = await readFilePromise(file, startOffset, endOffset);
 					md.update(data);
-					/*
-					crypto.subtle.digest(algorithm, data).then(hashed => {
-						console.log(hashed); // ArrayBuffer
-						console.log(hex(hashed)); // 185f8db32271fe25f561a6fc938b2e264306ec304eda518007d1764826381969
-					});
-					*/
-					//const digest = crypto.subtle.digest(algorithm, data);
-					//console.log(digest);
 				}
-				let endTime = performance.now(); //end time
-				let executionTimeInSeconds = (endTime - startTime) / 1000;
-				console.log('Time taken to execute add function: '+ executionTimeInSeconds +' seconds');
-				console.log(md.digest().toHex());
-				result.innerHTML = md.digest().toHex();
+				hashResult = md.digest()
+				const endTime = performance.now(); //end time
+				const executionTimeInSeconds = (endTime - startTime) / 1000;
+				console.log('Hashing completed in : '+ executionTimeInSeconds +' seconds');
+				progressBar.innerHTML = "100%"
+				result.innerHTML = hashResult.toHex();
 			} catch(error) {
 				console.log(error);
 			}

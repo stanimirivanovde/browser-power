@@ -3,22 +3,22 @@
 
 <head>
 	<meta charset="UTF-8">
-	<title>File Encryptor</title>
-	<script src="https://cdn.jsdelivr.net/npm/node-forge@0.7.0/dist/forge.min.js"></script>
-	<script src="https://cdn.jsdelivr.net/npm/web-streams-polyfill@2.0.2/dist/ponyfill.min.js"></script>
-	<script src="https://cdn.jsdelivr.net/npm/streamsaver@2.0.3/StreamSaver.min.js"></script>
+	<title>File Decryptor</title>
+	<script src="https://cdn.jsdelivr.net/npm/node-forge@0.9.0/dist/forge.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/web-streams-polyfill@3.0.0/dist/ponyfill.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/streamsaver@2.0.5/StreamSaver.min.js"></script>
 </head>
 
 <body>
 	<div>
-		File to encrypt:
+		File to decrypt:
 		<input type="file" id="file-upload"/>
 		<br/>
 
 		Type Password:
 		<input type="text" id="password"/>
 		<br/>
-		<button id="encryptBtn" onclick="decryptFileAsync(event)">Decrypt File</button>
+		<button id="decryptBtn" onclick="decryptFileAsync(event)">Decrypt File</button>
 	</div>
 
 	<br/>

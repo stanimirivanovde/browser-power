@@ -7,7 +7,7 @@ import ssl
 class web_server(BaseHTTPRequestHandler):
 	def do_GET(self):
 		if self.path == '/':
-			self.path = './encrypt-file.html'
+			self.path = '/encrypt-file.html'
 		try:
 			#Reading the file
 			file_to_open = open(self.path[1:]).read()
@@ -19,10 +19,10 @@ class web_server(BaseHTTPRequestHandler):
 		self.end_headers()
 		self.wfile.write(bytes(file_to_open, 'utf-8'))
 
-httpd = HTTPServer(('localhost', 4443), web_server)
+httpd = HTTPServer(('192.168.93.122', 4443), web_server)
 
 httpd.socket = ssl.wrap_socket (httpd.socket, 
-        keyfile="./key.pem", 
+        keyfile="./key.pem",
         certfile='./cert.pem', server_side=True)
 
 httpd.serve_forever()
