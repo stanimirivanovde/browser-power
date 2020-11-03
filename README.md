@@ -5,7 +5,7 @@ A showcase of client side javascript that can run in the browser
 This is an experiment to see how capable our modern browsers are. I want to create a set of file tools that run completely on the client side with no data being transferred to a server. This way we can have a new generation of browser based file tools that can start replacing their command-line versions.
 
 # What's next
-I'd like to see all basic operations on local files be implemented in the browser. How about different compression tools, diff, file editor, hex editor, hashing and encryption tools, search and replace tools, etc.
+I'd like to see all basic operations on local files be implemented in the browser. How about different compression tools, diff, file editor, hex editor, hashing and encryption tools, search and replace tools, etc. How about using these tools to process files and then pipe the result directly to our cloud storage providers or third-party APIs?
 
 # File Tools in Your Browser
 ## File Encryption and Decryption
