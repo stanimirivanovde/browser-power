@@ -47,10 +47,6 @@
 			});
 		}
 
-		function hex (buff) {
-			return [].map.call(new Uint8Array(buff), b => ('00' + b.toString(16)).slice(-2)).join('');
-		}
-
 		async function encryptFileAsync() {
 			var writer = undefined
 			try {
