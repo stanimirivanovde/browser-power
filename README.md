@@ -11,11 +11,11 @@ I'd like to see all basic operations on local files be implemented in the browse
 ## File Encryption and Decryption
 File encryption uses AES-GCM mode of encryption. The password specified by the user is processed by PBKDF2 using 100K iteration rounds. This takes a couple of seconds. I generate 128 bit salt that is also supplied to the PBKDF2 function. I'm curious to see if a better memory hard password strengthening function can be applied using javascript such as scrypt or argon2.
 
-The file encryption and decryption run at 9 MB/s on my macbook pro. This is not too bad but it can't compare to actual local disk utilities. The memory footprint is constant where the file is read in 1 MB chunks. This seems to work well.
+The file encryption and decryption run at 9 MB/s on my macbook pro. This is not too bad but it can't compare to actual local disk utilities. The memory footprint is constant where the file is read in 512Kb chunks. This seems to work well.
 
 The encrypted file structure is as follows:
 ```
-| 128-bit salt | file contents | 128-bit tag |
+| 128-bit salt | encrypted file contents | 128-bit tag |
 ```
 
 ## File Hasher
