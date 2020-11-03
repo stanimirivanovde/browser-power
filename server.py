@@ -3,6 +3,7 @@ import ssl
 
 # Simple HTTP server that serves over HTTPS
 # Make sure that key.pem and cert.pem are generated.
+# You can use the ./generate-certs.sh script provided in this repo.
 
 class web_server(BaseHTTPRequestHandler):
 	def do_GET(self):
