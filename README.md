@@ -8,6 +8,11 @@ This is an experiment to see how capable our modern browsers are. I want to crea
 I'd like to see all basic operations on local files be implemented in the browser. How about different compression tools, diff, file editor, hex editor, hashing and encryption tools, search and replace tools, etc. How about using these tools to process files and then pipe the result directly to our cloud storage providers or third-party APIs?
 
 # File Tools in Your Browser
+In order to build these tools I had to leverage some awesome open source javascript libraries:
+* StreamSaver.js - for downloading a file efficiently
+* web-streams-polyfill - for providing access to streaming functionality on different browsers
+* node-forge - for encrypting and hashing files efficiently
+
 ## File Encryption and Decryption
 File encryption uses AES-GCM mode of encryption. The password specified by the user is processed by PBKDF2 using 100K iteration rounds. This takes a couple of seconds. I generate 128 bit salt that is also supplied to the PBKDF2 function. I'm curious to see if a better memory hard password strengthening function can be applied using javascript such as scrypt or argon2.
 
