@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="UTF-8">
+	<title>File Decompressor</title>
+	<script src="https://cdn.jsdelivr.net/pako/1.0.5/pako.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/web-streams-polyfill@3.0.0/dist/ponyfill.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/streamsaver@2.0.5/StreamSaver.min.js"></script>
+</head>
+
+<body>
+	<div>
+		File to decompress using zlib:
+		<br/>
+		<input type="file" id="file-upload" onchange="decompressFileAsync(event)"/>
+		<br/>
+	</div>
+
+	<br/>
+	<br/>
+
+	<div>
+		Progress:
+		<div id="progressBar"></div>
+	</div>
+
+	<script type="text/Javascript">
+		'use strict';
+		var decompressionDone = true
+
+		function readFilePromise(file, start, end) {
+			return new Promise(function(resolve, reject) {
+				var reader = new FileReader();
+				// .slice() allows you to get slices of the file here we take a slice of the entire file
+				const fileSliceBlob = file.slice(start, end);
+				reader.readAsArrayBuffer(fileSliceBlob);
+				reader.onload = function() {
+					resolve(reader.result);
+				}
+				reader.onerror = function() {
+					reject(reader.error);
+				}
+			});
+		}
+
+		function writeStreamPromise(writer, data) {
+			return new Promise(function(resolve, reject) {
+				writer.write(data)
+					.then(resolve)
+					.catch(reject)
+			})
+		}
+
+		async function decompressFileAsync(event) {
+			var writer = undefined
+			try {
+				decompressionDone = false
+				const file = document.getElementById("file-upload").files[0];
+
+				// Use best compression
+				var inflator = new pako.Inflate({ level: 9, gzip: true })
+				console.log("Decompressoin using level 9 with gzip headers.")
+
+				// Read the file 1Kb at a time
+				// We need this to avoid running out of memory when the data
+				// was compressed really well such as 10GB of repeating '0'
+				const sliceSize = 1024
+				var numberOfSlices = parseInt(file.size / sliceSize, 10) + 1
+				if (sliceSize > file.size) {
+					numberOfSlices = 1
+				}
+				console.log(
+					"Processing file: " + file.name + " with size: " + file.size, ", slice size: " +
+					sliceSize + ", number of slices: " + numberOfSlices
+				);
+
+				// Create a writable stream
+				// We don't know how large the compressed file can get
+				const fileName = file.name + '.decompressed'
+				writer = createStream(fileName, file.size)
+
+
+				let startTime = performance.now(); //start time
+				var i = 0
+				for (i = 0; i < numberOfSlices; ++i) {
+					const startOffset = i * sliceSize
+					var endOffset = startOffset + sliceSize
+
+					// Update the user with some progress
+					// Report approximately every 1MB: ith slice is equal to i * sliceSize number of bytes processed
+					// 10MB are equal to 10MB / sliceSize. Since our slice size is a 1Kb we can report each 1000th slice
+					if ((i % 1000) == 0) {
+						progressBar.innerHTML = "" + ((i + 1) / numberOfSlices * 100) + "%";
+					}
+
+					// This is a cool way to use a promise returning function.
+					const data = await readFilePromise(file, startOffset, endOffset)
+
+					// Compress the data
+					inflator.push(data, pako.Z_SYNC_FLUSH)
+					if (inflator.err) {
+						console.log(inflator.msg)
+					}
+					// The writer promise will wait until the write is complete.
+					// We need this in order to avoid running out of memory.
+					// If we write asynchronously we might fill in the buffer with
+					// decompressed data faster than we can write it to disk causing an OOM crash
+					await writeStreamPromise(writer, inflator.result)
+				}
+				// This will fail if the authentication tag doesn't match
+				progressBar.innerHTML = "100%"
+
+				let endTime = performance.now(); //end time
+				let executionTimeInSeconds = (endTime - startTime) / 1000;
+				console.log('Decompression time: '+ executionTimeInSeconds +' seconds');
+			} catch(error) {
+				console.log(error);
+			} finally {
+				if (typeof writer != "undefined") {
+					writer.close()
+				}
+				decompressionDone = true
+			}
+		}
+
+		function createStream(fileName, fileSize) {
+			console.log("Creating a stream for file " + fileName + " with total size: " + fileSize)
+			// streamSaver.createWriteStream() returns a wirtable byte stream
+			// The WritableStream only accepts Uint8Array chunks
+			// (no other typed arrays, arrayBuffers or strings are allowed)
+			const fileStream = streamSaver.createWriteStream(fileName, {
+				size: fileSize, // (optional filesize) Will show progress
+				writableStrategy: undefined, // (optional)
+				readableStrategy: undefined  // (optional)
+			})
+			const writer = fileStream.getWriter()
+
+			// abort so it dose not look stuck
+			window.onunload = () => {
+				fileStream.abort()
+				// also possible to call abort on the writer you got from `getWriter()`
+				writer.abort()
+			}
+
+			window.onbeforeunload = evt => {
+				if (!decompressionDone) {
+					evt.returnValue = `Are you sure you want to leave?`;
+					alert("Ar you sure")
+				}
+			}
+			return writer
+		}
+	</script>
+</body>
+
+</html>
