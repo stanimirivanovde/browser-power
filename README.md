@@ -18,11 +18,13 @@ The encrypted file structure is as follows:
 | 128-bit salt | encrypted file contents | 128-bit tag |
 ```
 
-Encrypt a file: https://stanimirivanovde.github.io/browser-power/encrypt-file.html
-Decrypt a file: https://stanimirivanovde.github.io/browser-power/decrypt-file.html
-
 ## File Hasher
 The file hasher only supports SHA-256. It is much slower then the command line tool `sha256sum`. For the same file the browser version takes 13 seconds to hash 
 100MB file but the command line tool takes 2 seconds. If you're looking to hash smaller files it is perfectly ok to do this in the browser. The hashing takes constant memory and the file is read in 1 MB chunks.
 
-Hash a file: Decrypt a file: https://stanimirivanovde.github.io/browser-power/hash-file.html
+## Run the File Tools
+Encrypt a file: https://stanimirivanovde.github.io/browser-power/encrypt-file.html
+
+Decrypt a file: https://stanimirivanovde.github.io/browser-power/decrypt-file.html
+
+Hash a file: https://stanimirivanovde.github.io/browser-power/hash-file.html
