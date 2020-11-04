@@ -9,9 +9,9 @@ I'd like to see all basic operations on local files be implemented in the browse
 
 # File Tools in Your Browser
 In order to build these tools I had to leverage some awesome open source javascript libraries:
-* StreamSaver.js - for downloading a file efficiently
-* web-streams-polyfill - for providing access to streaming functionality on different browsers
-* node-forge - for encrypting and hashing files efficiently
+* [StreamSaver.js](https://github.com/jimmywarting/StreamSaver.js) - for downloading a file efficiently
+* [web-streams-polyfill](https://github.com/MattiasBuelens/web-streams-polyfill) - for providing access to streaming functionality on different browsers
+* [forge](https://github.com/digitalbazaar/forge) - for encrypting and hashing files efficiently
 
 ## File Encryption and Decryption
 File encryption uses AES-GCM mode of encryption. The password specified by the user is processed by PBKDF2 using 100K iteration rounds. This takes a couple of seconds. I generate 128 bit salt that is also supplied to the PBKDF2 function. I'm curious to see if a better memory hard password strengthening function can be applied using javascript such as scrypt or argon2.
