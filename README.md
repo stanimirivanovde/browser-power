@@ -31,6 +31,8 @@ The file hasher only supports SHA-256. It is much slower then the command line t
 ## File Compressor
 The file compressor uses zlib with level 9 to compress files in the browser. The files are read and compressed/decompressed in chunks. The compressor works on 1Mb chunks while the decompressor works on 1Kb chunks. If you have really well compressed data such as 10GBs of zeros you might run out of memory reall quick if you read 1Mb of compressed data and try to decompress it in memory. The progress is displayed every 1Mb of read compressed data in order to avoid overworking the browser.
 
+Keep in mind that the download progress will not be accurate for both compression and decompression because we don't know the compressed or decompressed size in advanced. The progress displayed on the page will be accurate as it represents how much from the source file we've processed.
+
 ## Run the File Tools
 Encrypt a file: https://stanimirivanovde.github.io/browser-power/encrypt-file.html
 
