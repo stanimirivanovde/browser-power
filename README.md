@@ -1,5 +1,5 @@
 # browser-power
-A showcase of client side javascript that can run in the browser
+File utilities for our browsers - the future of command line utilities
 
 # What is this
 This is an experiment to see how capable our modern browsers are. I want to create a set of file tools that run completely on the client side with no data being transferred to a server. This way we can have a new generation of browser based file tools that can start replacing their command-line versions.
